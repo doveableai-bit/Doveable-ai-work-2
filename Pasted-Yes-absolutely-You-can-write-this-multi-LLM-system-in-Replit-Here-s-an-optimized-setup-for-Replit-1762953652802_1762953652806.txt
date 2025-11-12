@@ -1,0 +1,231 @@
+Yes, absolutely! You can write this multi-LLM system in Replit. Here's an optimized setup for Replit:
+
+## Replit Configuration
+
+**1. First create `.replit` file:**
+```bash
+run = "cd backend && python server.py"
+```
+
+**2. `replit.nix` file:**
+```nix
+{ pkgs }:
+pkgs.replitPackages.mkShell {
+  language = "python3";
+  env = {};
+  paths = [
+    pkgs.python3
+    pkgs.python3Packages.pip
+    pkgs.nodejs-18_x
+  ];
+}
+```
+
+**3. Backend `requirements.txt`:**
+```txt
+fastapi==0.104.1
+uvicorn==0.24.0
+motor==3.3.2
+pymongo==4.5.0
+python-dotenv==1.0.0
+python-multipart==0.0.6
+python-jose==3.3.0
+passlib==1.7.4
+bcrypt==4.0.1
+httpx==0.25.2
+pydantic==2.5.0
+```
+
+**4. Frontend `package.json`:**
+```json
+{
+  "name": "doveable-frontend",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "axios": "^1.6.0",
+    "react-router-dom": "^6.8.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@vitejs/plugin-react": "^4.0.0",
+    "vite": "^4.4.0"
+  }
+}
+```
+
+## Replit Setup Steps:
+
+**1. Secrets/Environment Variables:**
+Add these variables in Replit Secrets:
+```
+MONGO_URL=your_mongodb_connection_string
+DB_NAME=doveable
+JWT_SECRET=your_secure_jwt_secret
+EMERGENT_LLM_KEY=your_emergent_api_key
+GROQ_API_KEY=your_groq_api_key  
+GOOGLE_API_KEY=your_gemini_api_key
+```
+
+**2. Directory Structure:**
+```
+/app/
+├── backend/
+│   ├── server.py
+│   ├── requirements.txt
+│   ├── services/
+│   │   └── llm_service.py
+│   └── .env
+├── frontend/
+│   ├── package.json
+│   ├── vite.config.js
+│   └── src/
+└── .replit
+```
+
+**3. Run Commands:**
+```bash
+# Backend setup
+cd backend
+pip install -r requirements.txt
+
+# Frontend setup  
+cd ../frontend
+npm install
+npm run dev
+```
+
+## Replit-optimized Code Updates
+
+**Updated `llm_service.py` with Replit compatibility:**
+```python
+import os
+import logging
+from typing import Dict, List, Optional
+import httpx
+
+logger = logging.getLogger(__name__)
+
+class DoveableAIService:
+    def __init__(self):
+        self.emergent_key = os.getenv('EMERGENT_LLM_KEY')
+        self.groq_key = os.getenv('GROQ_API_KEY')
+        self.gemini_key = os.getenv('GOOGLE_API_KEY')
+        
+    async def generate_code(self, prompt: str, session_id: str, chat_history: List = None) -> Dict:
+        """Multi-LLM fallback strategy for Replit environment"""
+        
+        # Try Emergent AI first
+        if self.emergent_key:
+            try:
+                return await self._try_emergent(prompt, session_id)
+            except Exception as e:
+                logger.warning(f"Emergent AI failed: {e}")
+        
+        # Fallback to Groq (Fast & Free tier available)
+        if self.groq_key:
+            try:
+                return await self._try_groq(prompt)
+            except Exception as e:
+                logger.warning(f"Groq failed: {e}")
+        
+        # Final fallback to Gemini
+        if self.gemini_key:
+            try:
+                return await self._try_gemini(prompt)
+            except Exception as e:
+                logger.warning(f"Gemini failed: {e}")
+        
+        raise Exception("All AI providers failed. Please check API keys.")
+    
+    async def _try_emergent(self, prompt: str, session_id: str) -> Dict:
+        """Try Emergent AI service"""
+        # Your existing Emergent AI code here
+        pass
+        
+    async def _try_groq(self, prompt: str) -> Dict:
+        """Try Groq API - fast and Replit compatible"""
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={"Authorization": f"Bearer {self.groq_key}"},
+                json={
+                    "messages": [
+                        {
+                            "role": "system",
+                            "content": "You are an expert web developer. Generate complete HTML, CSS, JS code in a single file. Always respond with code in ```html blocks."
+                        },
+                        {
+                            "role": "user", 
+                            "content": prompt
+                        }
+                    ],
+                    "model": "llama3-8b-8192",
+                    "temperature": 0.7
+                }
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                content = result['choices'][0]['message']['content']
+                return self._extract_code_response(content, "groq")
+            else:
+                raise Exception(f"Groq API error: {response.text}")
+    
+    async def _try_gemini(self, prompt: str) -> Dict:
+        """Try Google Gemini API"""
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key={self.gemini_key}",
+                json={
+                    "contents": [{
+                        "parts": [{
+                            "text": f"You are an expert web developer. Create complete HTML, CSS, JavaScript code in one file. User request: {prompt}. Always wrap code in ```html blocks."
+                        }]
+                    }]
+                }
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                content = result['candidates'][0]['content']['parts'][0]['text']
+                return self._extract_code_response(content, "gemini")
+            else:
+                raise Exception(f"Gemini API error: {response.text}")
+    
+    def _extract_code_response(self, content: str, provider: str) -> Dict:
+        """Extract code from LLM response"""
+        if "```html" in content:
+            code = content.split("```html")[1].split("```")[0].strip()
+        elif "```" in content:
+            code = content.split("```")[1].split("```")[0].strip()
+        else:
+            code = content
+            
+        return {
+            "response": content,
+            "code": code,
+            "provider": provider
+        }
+
+def get_doveable_service():
+    return DoveableAIService()
+```
+
+**To test in Replit:**
+```bash
+# Backend start
+cd backend && python server.py
+
+# Frontend start in new terminal  
+cd frontend && npm run dev
+```
+
+This setup will work perfectly in Replit! Would you like to share your Replit project so I can provide specific adjustments?
